@@ -33,16 +33,16 @@ public class TxtToEpubMaker(TranslationTask translationTask)
             statue.Success = true;
             statue.EpubPath = txtToEpub._outputFilePath;
         }
-        catch (JsonException jsonException)
+        catch (Exception exception)when (exception is JsonException or FileNotFoundException or IOException)
         {
             statue.Success = false;
-            statue.ErrorMessage = $"{nameof(JsonException)}: {jsonException}";
+            statue.ErrorMessage = $"{exception.GetType().Name}: {exception}";
         }
-        catch (IOException ioException)
-        {
-            statue.Success = false;
-            statue.ErrorMessage = $"{nameof(IOException)}: {ioException}";
-        }
+        // catch
+        // {
+        //     statue.Success = false;
+        //     statue.ErrorMessage = $"Unknow Error!";
+        // }
 
         return statue;
     }
@@ -52,6 +52,7 @@ public class TxtToEpubMaker(TranslationTask translationTask)
     {
         GenerateTempMetaInf();
         GenerateTempAllXhtmlContentWithRegister();
+        GenerateTempCoverXhtmlWithRegister();
         GenerateTempTocXhtmlWithRegister();
         GenerateTempTocNcxWithRegister();
         GenerateTempContentOpf();
@@ -85,6 +86,17 @@ public class TxtToEpubMaker(TranslationTask translationTask)
         }
     }
 
+    private void GenerateTempCoverXhtmlWithRegister()
+    {
+        RegisterCoverPath();
+        var coverXhtml =
+            EpubMakeHelper.MakeCoverXhtmlTemplate(Path.Combine("..", _registeredOebpsList.Cover.VirtualPath)
+                .Replace('\\', '/'));
+
+        WriteAllTextInTemp("/OEBPS/xhtml/cover.xhtml", coverXhtml.ToString());
+        _registeredOebpsList.CoverXhtml = "xhtml/cover.xhtml";
+    }
+
     private void GenerateTempTocXhtmlWithRegister()
     {
         XNamespace xmlns = "http://www.w3.org/1999/xhtml";
@@ -92,7 +104,12 @@ public class TxtToEpubMaker(TranslationTask translationTask)
 
         Debug.Assert(tocXhtml.Root != null);
         var navElement = tocXhtml.Root.Element(xmlns + "body")?.Element(xmlns + "nav");
-        var volumesOl = navElement?.Element(xmlns + "ol");
+        var volumesOl = navElement?.Element(xmlns + "ol") ?? throw new ArgumentNullException();
+
+        volumesOl.AddFirst(new XElement(xmlns + "li",
+            new XElement(xmlns + "a",
+                new XAttribute("href", "cover.xhtml"),
+                "封面")));
 
         foreach (var volume in _registeredOebpsList.Volumes)
         {
@@ -102,7 +119,7 @@ public class TxtToEpubMaker(TranslationTask translationTask)
             var chaptersOl = new XElement(xmlns + "ol");
             foreach (var chapterLinker in volume.Chapters)
             {
-                var relativePath = chapterLinker.Path;
+                var relativePath = chapterLinker.Path.Replace('\\', '/').TrimStart("xhtml/").ToString();
                 var fixedPath = relativePath.Replace('\\', '/');
                 var chapterLi = new XElement(xmlns + "li");
 
@@ -111,11 +128,11 @@ public class TxtToEpubMaker(TranslationTask translationTask)
             }
 
             volumeLi.Add(chaptersOl);
-            volumesOl?.Add(volumeLi);
+            volumesOl.Add(volumeLi);
         }
 
-        WriteAllTextInTemp("/OEBPS/toc.xhtml", tocXhtml.ToString());
-        _registeredOebpsList.TocXhtml = "toc.xhtml";
+        WriteAllTextInTemp("/OEBPS/xhtml/toc.xhtml", tocXhtml.ToString());
+        _registeredOebpsList.TocXhtml = "xhtml/toc.xhtml";
     }
 
     private void GenerateTempTocNcxWithRegister()
@@ -128,20 +145,29 @@ public class TxtToEpubMaker(TranslationTask translationTask)
                      ?? throw new InvalidOperationException("navMap element not found");
 
         var playOrder = 1;
+
+        navMap.Add(new XElement(xmlns + "navPoint",
+            new XAttribute("id", "cover"),
+            new XAttribute("playOrder", playOrder),
+            new XElement(xmlns + "navLabel",
+                new XElement(xmlns + "text", "封面")),
+            new XElement(xmlns + "content",
+                new XAttribute("src", Path.Combine("..", _registeredOebpsList.CoverXhtml).Replace('\\', '/')))
+        ));
+        playOrder++;
+
         foreach (var (volume, volIdx) in _registeredOebpsList.Volumes.Select((v, i) => (v, i + 1)))
         {
-            // 卷的 navPoint（一级目录）
             var volumeNavPoint = new XElement(xmlns + "navPoint",
                 new XAttribute("id", $"volume{volIdx}"),
                 new XAttribute("playOrder", playOrder++),
                 new XElement(xmlns + "navLabel",
                     new XElement(xmlns + "text", volume.Title)),
-                // 指向卷的第一个章节（如果存在）
                 new XElement(xmlns + "content",
-                    new XAttribute("src", volume.Chapters.FirstOrDefault().Path ?? ""))
+                    new XAttribute("src",
+                        Path.Combine("..", volume.Chapters.FirstOrDefault().Path ?? "").Replace('\\', '/')))
             );
 
-            // 章节子目录（二级）
             foreach (var (chapter, chapIdx) in volume.Chapters.Select((c, i) => (c, i + 1)))
             {
                 var chapterNavPoint = new XElement(xmlns + "navPoint",
@@ -150,7 +176,7 @@ public class TxtToEpubMaker(TranslationTask translationTask)
                     new XElement(xmlns + "navLabel",
                         new XElement(xmlns + "text", chapter.Title)),
                     new XElement(xmlns + "content",
-                        new XAttribute("src", chapter.Path))
+                        new XAttribute("src", Path.Combine("..", chapter.Path).Replace('\\', '/')))
                 );
                 volumeNavPoint.Add(chapterNavPoint);
             }
@@ -158,9 +184,8 @@ public class TxtToEpubMaker(TranslationTask translationTask)
             navMap.Add(volumeNavPoint);
         }
 
-        // 写入临时文件系统
-        WriteAllTextInTemp("/OEBPS/toc.ncx", tocNcx.ToString());
-        _registeredOebpsList.TocNcx = "toc.ncx";
+        WriteAllTextInTemp("/OEBPS/backup/toc.ncx", tocNcx.ToString());
+        _registeredOebpsList.TocNcx = "backup/toc.ncx";
     }
 
     private void GenerateTempContentOpf()
@@ -185,14 +210,40 @@ public class TxtToEpubMaker(TranslationTask translationTask)
         var spine = contentOpf.Root.Element(xmlnsOpf + "spine") ?? throw new ArgumentNullException();
 
         manifest.Add(new XElement(xmlnsOpf + "item",
+            new XAttribute("id", "cover"),
+            new XAttribute("href", _registeredOebpsList.CoverXhtml),
+            new XAttribute("media-type", "application/xhtml+xml")));
+
+        const string coverImageId = "cover-image";
+        var coverImageHref = _registeredOebpsList.Cover.VirtualPath.Replace('\\', '/');
+        var ext = Path.GetExtension(_registeredOebpsList.Cover.PhysicalPath).ToLowerInvariant();
+        var mediaType = ext switch
+        {
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".png" => "image/png",
+            ".gif" => "image/gif",
+            ".svg" => "image/svg+xml",
+            _ => "application/octet-stream"
+        };
+        manifest.Add(new XElement(xmlnsOpf + "item",
+            new XAttribute("id", coverImageId),
+            new XAttribute("href", coverImageHref),
+            new XAttribute("media-type", mediaType),
+            new XAttribute("properties", "cover-image")));
+
+        metadata.Add(new XElement("meta",
+            new XAttribute("name", "cover"),
+            new XAttribute("content", coverImageId)));
+
+        manifest.Add(new XElement(xmlnsOpf + "item",
             new XAttribute("id", "toc"),
-            new XAttribute("href", "toc.xhtml"),
+            new XAttribute("href", _registeredOebpsList.TocXhtml),
             new XAttribute("media-type", "application/xhtml+xml"),
             new XAttribute("properties", "nav")));
 
         manifest.Add(new XElement(xmlnsOpf + "item",
             new XAttribute("id", "ncx"),
-            new XAttribute("href", "toc.ncx"),
+            new XAttribute("href", _registeredOebpsList.TocNcx),
             new XAttribute("media-type", "application/x-dtbncx+xml")));
 
         spine.Add(new XElement(xmlnsOpf + "itemref", new XAttribute("idref", "ncx")));
@@ -218,6 +269,22 @@ public class TxtToEpubMaker(TranslationTask translationTask)
         }
 
         WriteAllTextInTemp(contentOpfPath, contentOpf.ToString());
+    }
+
+    private void RegisterCoverPath()
+    {
+        var fullPath = _bookContent.CoverPath;
+        if (!File.Exists(fullPath))
+        {
+            throw new FileNotFoundException($"Missing file \"{fullPath}\"");
+        }
+
+        var fileExtension = Path.GetExtension(fullPath);
+        _registeredOebpsList.Cover = new RegisteredOebpsList.CoverLinker
+        {
+            PhysicalPath = fullPath,
+            VirtualPath = $"images/cover{fileExtension}"
+        };
     }
 
     private void GenerateTempVolumeWithRegister(in string prefix, in TranslationTask.BookContent.Volume volume)
@@ -246,38 +313,44 @@ public class TxtToEpubMaker(TranslationTask translationTask)
 
     private void PackUp()
     {
-        var memoryStream = new MemoryStream();
-        var zipArchive = new ZipArchive(memoryStream, ZipArchiveMode.Create, leaveOpen: true);
+        using var memoryStream = new MemoryStream();
 
-        using (var stream = zipArchive.CreateEntry("mimetype", CompressionLevel.NoCompression).Open())
+        using (var zipArchive = new ZipArchive(memoryStream, ZipArchiveMode.Create, leaveOpen: true))
         {
-            stream.Write("application/epub+zip"u8);
+            using (var stream = zipArchive.CreateEntry("/mimetype", CompressionLevel.NoCompression).Open())
+            {
+                stream.Write("application/epub+zip"u8);
+            }
+
+            foreach (var file in _tempFileSystem.EnumerateFiles("/", "*", SearchOption.AllDirectories))
+            {
+                var path = file.FullName.TrimStart('/');
+                using var tmpZipStream = zipArchive.CreateEntry(path, CompressionLevel.Optimal)
+                    .Open();
+                using var tmpFileStream = _tempFileSystem.OpenFile(file, FileMode.Open, FileAccess.Read);
+
+                tmpFileStream.CopyTo(tmpZipStream);
+            }
+
+            {
+                var cover = _registeredOebpsList.Cover;
+                using var coverStream = new FileStream(cover.PhysicalPath, FileMode.Open,
+                    FileAccess.Read);
+
+                var zipFilePath = Path.Combine("/OEBPS", cover.VirtualPath).Replace('\\', '/');
+                using var tmpZipStream = zipArchive.CreateEntry(zipFilePath, CompressionLevel.Fastest).Open();
+
+                coverStream.CopyTo(tmpZipStream);
+            }
         }
-
-        foreach (var file in _tempFileSystem.EnumerateFiles("/", "*", SearchOption.AllDirectories))
-        {
-            var path = file.FullName.TrimStart('/');
-            var tmpZipStream = zipArchive.CreateEntry(path, CompressionLevel.Optimal)
-                .Open();
-            var tmpFileStream = _tempFileSystem.OpenFile(file, FileMode.Open, FileAccess.Read);
-
-            tmpFileStream.CopyTo(tmpZipStream);
-
-            tmpFileStream.Dispose();
-            tmpZipStream.Dispose();
-        }
-
-        zipArchive.Dispose();
 
         memoryStream.Position = 0;
         Directory.CreateDirectory(Path.GetDirectoryName(_outputFilePath) ??
-                                  throw new IOException($"File \"{_outputFilePath}\" does not has parent directory"));
-        var outputFileStream = new FileStream(_outputFilePath, FileMode.Create, FileAccess.Write);
+                                  throw new IOException(
+                                      $"File \"{_outputFilePath}\" does not has parent directory"));
+        using var outputFileStream = new FileStream(_outputFilePath, FileMode.Create, FileAccess.Write);
 
         memoryStream.CopyTo(outputFileStream);
-
-        memoryStream.Dispose();
-        outputFileStream.Dispose();
     }
 
     private readonly TranslationTask.BookContent _bookContent = translationTask.Content;
@@ -294,16 +367,25 @@ public class TxtToEpubMaker(TranslationTask translationTask)
 
         public string TocNcx { get; set; }
 
+        public string CoverXhtml { get; set; }
+        public CoverLinker Cover { get; set; }
+
+        public record struct CoverLinker
+        {
+            public string PhysicalPath { get; init; }
+            public string VirtualPath { get; init; }
+        }
+
         public struct Volume()
         {
-            public required string Title { get; set; }
+            public required string Title { get; init; }
             public List<ChapterLinker> Chapters { get; set; } = [];
         }
 
         public struct ChapterLinker
         {
-            public required string Title { get; set; }
-            public required string Path { get; set; }
+            public required string Title { get; init; }
+            public required string Path { get; init; }
         }
     }
 

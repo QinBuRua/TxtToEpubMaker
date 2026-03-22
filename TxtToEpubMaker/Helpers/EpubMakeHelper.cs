@@ -104,11 +104,66 @@ public static class EpubMakeHelper
         );
     }
 
+    public static XDocument MakeCoverXhtmlTemplate(string imagePath)
+    {
+        XNamespace xmlns = "http://www.w3.org/1999/xhtml";
+        XNamespace xmlnsEpub = "http://www.idpf.org/2007/ops";
+
+        return new XDocument(
+            new XDeclaration("1.0", "UTF-8", null),
+            new XDocumentType("html", "", "", null),
+            new XElement(xmlns + "html",
+                new XAttribute(XNamespace.Xml + "lang", "zh-CN"),
+                new XAttribute("lang", "zh-CN"),
+                new XAttribute(XNamespace.Xmlns + "epub", xmlnsEpub.NamespaceName),
+                new XElement(xmlns + "head",
+                    new XElement(xmlns + "meta", new XAttribute("charset", "UTF-8")),
+                    new XElement(xmlns + "meta",
+                        new XAttribute("name", "viewport"),
+                        new XAttribute("content", "width=device-width, initial-scale=1.0")),
+                    new XElement(xmlns + "title", "封面"),
+                    new XElement(xmlns + "style",
+                        new XAttribute("type", "text/css"),
+                        """
+                            body {
+                                margin: 0;
+                                padding: 0;
+                                text-align: center;
+                                background-color: #ffffff;
+                            }
+                            .cover-image {
+                                max-width: 100%;
+                                height: auto;
+                                margin: 0 auto;
+                                display: block;
+                            }
+                            @media all and (orientation: landscape) {
+                                .cover-image {
+                                    max-height: 100vh;
+                                    width: auto;
+                                }
+                            }
+                        """)
+                ),
+                new XElement(xmlns + "body",
+                    new XElement(xmlns + "div",
+                        new XAttribute(xmlnsEpub + "type", "cover"),
+                        new XElement(xmlns + "img",
+                            new XAttribute("src", imagePath),
+                            new XAttribute("alt", "封面"),
+                            new XAttribute("class", "cover-image")
+                        )
+                    )
+                )
+            )
+        );
+    }
+
     public static XDocument TxtToXml(in TranslationTask.BookContent.ChapterLinker chapterLinker)
     {
         if (!File.Exists(chapterLinker.FilePath))
         {
-            throw new IOException($"Missing file {chapterLinker.FilePath}");
+            throw new FileNotFoundException($"Missing file \"{chapterLinker.FilePath}\"");
         }
 
         XNamespace xmlns = "http://www.w3.org/1999/xhtml";

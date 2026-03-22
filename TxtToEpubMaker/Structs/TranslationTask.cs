@@ -12,7 +12,7 @@ public struct TranslationTask()
         public required string Title { get; set; }
         public required string Author { get; set; }
         public required string BookId { get; set; }
-        public string? Cover { get; set; }
+        public required string CoverPath { get; set; }
         public required List<Volume> Volumes { get; set; }
 
         public struct ChapterLinker
