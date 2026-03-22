@@ -1,0 +1,59 @@
+﻿<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="PublishAllRelease" type="com.intellij.execution.configurations.multilaunch" factoryName="MultiLaunchConfiguration">
+    <rows>
+      <ExecutableRowSnapshot>
+        <option name="condition">
+          <ConditionSnapshot>
+            <option name="type" value="immediately" />
+          </ConditionSnapshot>
+        </option>
+        <option name="disableDebugging" value="true" />
+        <option name="executable">
+          <ExecutableSnapshot>
+            <option name="id" value="runConfig:发布到文件夹.win-x64" />
+          </ExecutableSnapshot>
+        </option>
+      </ExecutableRowSnapshot>
+      <ExecutableRowSnapshot>
+        <option name="condition">
+          <ConditionSnapshot>
+            <option name="type" value="afterPreviousFinished" />
+          </ConditionSnapshot>
+        </option>
+        <option name="disableDebugging" value="true" />
+        <option name="executable">
+          <ExecutableSnapshot>
+            <option name="id" value="runConfig:发布到文件夹.win-x86" />
+          </ExecutableSnapshot>
+        </option>
+      </ExecutableRowSnapshot>
+      <ExecutableRowSnapshot>
+        <option name="condition">
+          <ConditionSnapshot>
+            <option name="type" value="afterPreviousFinished" />
+          </ConditionSnapshot>
+        </option>
+        <option name="disableDebugging" value="true" />
+        <option name="executable">
+          <ExecutableSnapshot>
+            <option name="id" value="runConfig:发布到文件夹.linux-x64" />
+          </ExecutableSnapshot>
+        </option>
+      </ExecutableRowSnapshot>
+      <ExecutableRowSnapshot>
+        <option name="condition">
+          <ConditionSnapshot>
+            <option name="type" value="afterPreviousFinished" />
+          </ConditionSnapshot>
+        </option>
+        <option name="disableDebugging" value="true" />
+        <option name="executable">
+          <ExecutableSnapshot>
+            <option name="id" value="runConfig:发布到文件夹.linux-arm" />
+          </ExecutableSnapshot>
+        </option>
+      </ExecutableRowSnapshot>
+    </rows>
+    <method v="2" />
+  </configuration>
+</component>
