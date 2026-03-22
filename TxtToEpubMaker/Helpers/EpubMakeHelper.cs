@@ -191,4 +191,25 @@ public static class EpubMakeHelper
 
         return xhtmlDoc;
     }
+
+    public static TranslationTask.BookContent FilterTxtIfExists(in TranslationTask.BookContent bookContent)
+    {
+        var filteredVolumes = bookContent.Volumes
+            .Select(volume => volume with
+            {
+                Chapters = volume.Chapters
+                    .Where(chapterLinker => File.Exists(chapterLinker.FilePath))
+                    .ToList()
+            })
+            .Where(volume => volume.Chapters.Count != 0)
+            .ToList();
+
+
+        if (filteredVolumes.Count == 0)
+        {
+            throw new FileNotFoundException("There is not Any files in BookContent");
+        }
+
+        return bookContent with { Volumes = filteredVolumes };
+    }
 }

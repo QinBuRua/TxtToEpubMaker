@@ -5,7 +5,9 @@ public struct TranslationTask()
     public required BookContent Content { get; set; }
     public required string OutFilePath { get; set; }
 
-    public bool ForceRemove { get; set; } = false;
+    public bool ForceRemove { get; init; } = false;
+
+    public bool SkipIfTxtNotExists { get; init; } = false;
 
     public struct BookContent
     {

@@ -1,6 +1,5 @@
 ﻿using System.Diagnostics;
 using System.IO.Compression;
-using System.Text.Json;
 using System.Xml.Linq;
 using TxtToEpubMaker.Helpers;
 using TxtToEpubMaker.Structs;
@@ -33,16 +32,11 @@ public class TxtToEpubMaker(TranslationTask translationTask)
             statue.Success = true;
             statue.EpubPath = txtToEpub._outputFilePath;
         }
-        catch (Exception exception)when (exception is JsonException or FileNotFoundException or IOException)
+        catch (Exception exception)
         {
             statue.Success = false;
             statue.ErrorMessage = $"{exception.GetType().Name}: {exception}";
         }
-        // catch
-        // {
-        //     statue.Success = false;
-        //     statue.ErrorMessage = $"Unknow Error!";
-        // }
 
         return statue;
     }
@@ -148,13 +142,12 @@ public class TxtToEpubMaker(TranslationTask translationTask)
 
         navMap.Add(new XElement(xmlns + "navPoint",
             new XAttribute("id", "cover"),
-            new XAttribute("playOrder", playOrder),
+            new XAttribute("playOrder", playOrder++),
             new XElement(xmlns + "navLabel",
                 new XElement(xmlns + "text", "封面")),
             new XElement(xmlns + "content",
                 new XAttribute("src", Path.Combine("..", _registeredOebpsList.CoverXhtml).Replace('\\', '/')))
         ));
-        playOrder++;
 
         foreach (var (volume, volIdx) in _registeredOebpsList.Volumes.Select((v, i) => (v, i + 1)))
         {
@@ -190,85 +183,8 @@ public class TxtToEpubMaker(TranslationTask translationTask)
 
     private void GenerateTempContentOpf()
     {
-        const string contentOpfPath = "/OEBPS/content.opf";
-        var contentOpf = EpubMakeHelper.MakeContentOpfTemplate();
-
-        Debug.Assert(contentOpf.Root != null);
-        XNamespace xmlnsDc = "http://purl.org/dc/elements/1.1/";
-        XNamespace xmlnsOpf = "http://www.idpf.org/2007/opf";
-
-        var metadata = contentOpf.Root.Element(xmlnsOpf + "metadata")
-                       ?? throw new ArgumentNullException();
-        metadata.Add(new XElement(xmlnsDc + "identifier", new XAttribute("id", "book-id"), _bookContent.BookId));
-        metadata.Add(new XElement(xmlnsDc + "title", _bookContent.Title));
-        metadata.Add(new XElement(xmlnsDc + "creator", new XAttribute("id", "author"), _bookContent.Author));
-        metadata.Add(new XElement(xmlnsDc + "lang", "zh-CN"));
-        metadata.Add(new XElement("meta", new XAttribute("property", "dcterms:modified"),
-            TimeHelper.GetNowUtcTimeString()));
-
-        var manifest = contentOpf.Root.Element(xmlnsOpf + "manifest") ?? throw new ArgumentNullException();
-        var spine = contentOpf.Root.Element(xmlnsOpf + "spine") ?? throw new ArgumentNullException();
-
-        manifest.Add(new XElement(xmlnsOpf + "item",
-            new XAttribute("id", "cover"),
-            new XAttribute("href", _registeredOebpsList.CoverXhtml),
-            new XAttribute("media-type", "application/xhtml+xml")));
-
-        const string coverImageId = "cover-image";
-        var coverImageHref = _registeredOebpsList.Cover.VirtualPath.Replace('\\', '/');
-        var ext = Path.GetExtension(_registeredOebpsList.Cover.PhysicalPath).ToLowerInvariant();
-        var mediaType = ext switch
-        {
-            ".jpg" or ".jpeg" => "image/jpeg",
-            ".png" => "image/png",
-            ".gif" => "image/gif",
-            ".svg" => "image/svg+xml",
-            _ => "application/octet-stream"
-        };
-        manifest.Add(new XElement(xmlnsOpf + "item",
-            new XAttribute("id", coverImageId),
-            new XAttribute("href", coverImageHref),
-            new XAttribute("media-type", mediaType),
-            new XAttribute("properties", "cover-image")));
-
-        metadata.Add(new XElement("meta",
-            new XAttribute("name", "cover"),
-            new XAttribute("content", coverImageId)));
-
-        manifest.Add(new XElement(xmlnsOpf + "item",
-            new XAttribute("id", "toc"),
-            new XAttribute("href", _registeredOebpsList.TocXhtml),
-            new XAttribute("media-type", "application/xhtml+xml"),
-            new XAttribute("properties", "nav")));
-
-        manifest.Add(new XElement(xmlnsOpf + "item",
-            new XAttribute("id", "ncx"),
-            new XAttribute("href", _registeredOebpsList.TocNcx),
-            new XAttribute("media-type", "application/x-dtbncx+xml")));
-
-        spine.Add(new XElement(xmlnsOpf + "itemref", new XAttribute("idref", "ncx")));
-
-        if (spine.Attributes().All(a => a.Name != "toc"))
-            spine.Add(new XAttribute("toc", "ncx"));
-
-        foreach (var (volume, indexV) in _registeredOebpsList.Volumes.Select((volume, index) =>
-                     (volume, index + 1)))
-        {
-            foreach (var (chapterLinker, indexC) in volume.Chapters.Select((chapter, index) =>
-                         (chapter, index + 1)))
-            {
-                var relativePath = chapterLinker.Path;
-                var id = $"volume{indexV}chapter{indexC}";
-                manifest.Add(new XElement(xmlnsOpf + "item",
-                    new XAttribute("id", id),
-                    new XAttribute("href", relativePath),
-                    new XAttribute("media-type", "application/xhtml+xml")
-                ));
-                spine.Add(new XElement(xmlnsOpf + "itemref", new XAttribute("idref", id)));
-            }
-        }
-
-        WriteAllTextInTemp(contentOpfPath, contentOpf.ToString());
+        var contentOpf = ContentOpfHelper.MakeContentOpfFrom(_registeredOebpsList, _bookContent);
+        WriteAllTextInTemp("/OEBPS/content.opf", contentOpf.ToString());
     }
 
     private void RegisterCoverPath()
@@ -353,7 +269,17 @@ public class TxtToEpubMaker(TranslationTask translationTask)
         memoryStream.CopyTo(outputFileStream);
     }
 
-    private readonly TranslationTask.BookContent _bookContent = translationTask.Content;
+    private void WriteAllTextInTemp(in UPath uPath, in string text)
+    {
+        var parent = uPath.GetDirectory();
+        _tempFileSystem.CreateDirectory(parent);
+        _tempFileSystem.WriteAllText(uPath, text);
+    }
+
+    private readonly TranslationTask.BookContent _bookContent = translationTask.SkipIfTxtNotExists
+        ? EpubMakeHelper.FilterTxtIfExists(translationTask.Content)
+        : translationTask.Content;
+
     private readonly string _outputFilePath = translationTask.OutFilePath;
     private readonly bool _forceRemove = translationTask.ForceRemove;
     private RegisteredOebpsList _registeredOebpsList = new();
@@ -389,10 +315,116 @@ public class TxtToEpubMaker(TranslationTask translationTask)
         }
     }
 
-    private void WriteAllTextInTemp(in UPath uPath, in string text)
+    private class ContentOpfHelper(
+        in RegisteredOebpsList registeredOebpsList,
+        in TranslationTask.BookContent bookContent)
     {
-        var parent = uPath.GetDirectory();
-        _tempFileSystem.CreateDirectory(parent);
-        _tempFileSystem.WriteAllText(uPath, text);
+        public static XDocument MakeContentOpfFrom(in RegisteredOebpsList registeredOebpsList,
+            in TranslationTask.BookContent bookContent)
+        {
+            var helper = new ContentOpfHelper(registeredOebpsList, bookContent);
+
+            helper.GenerateMetadata();
+            helper.GenerateManifestAndSpine();
+
+            return helper._contentOpf;
+        }
+
+        private void GenerateMetadata()
+        {
+            Debug.Assert(_contentOpf.Root != null);
+            var metadata = _contentOpf.Root.Element(_xmlnsOpf + "metadata")
+                           ?? throw new ArgumentNullException();
+
+            metadata.Add(new XElement(_xmlnsDc + "identifier", new XAttribute("id", "book-id"), _bookContent.BookId));
+            metadata.Add(new XElement(_xmlnsDc + "title", _bookContent.Title));
+            metadata.Add(new XElement(_xmlnsDc + "creator", new XAttribute("id", "author"), _bookContent.Author));
+            metadata.Add(new XElement(_xmlnsDc + "lang", "zh-CN"));
+            metadata.Add(new XElement(_xmlnsOpf + "meta", new XAttribute("property", "dcterms:modified"),
+                TimeHelper.GetNowUtcTimeString()));
+            metadata.Add(new XElement(_xmlnsOpf + "meta",
+                new XAttribute("name", "cover"),
+                new XAttribute("content", "cover-image")));
+        }
+
+        private void GenerateManifestAndSpine()
+        {
+            Debug.Assert(_contentOpf.Root != null);
+            var manifest = _contentOpf.Root.Element(_xmlnsOpf + "manifest") ?? throw new ArgumentNullException();
+            var spine = _contentOpf.Root.Element(_xmlnsOpf + "spine") ?? throw new ArgumentNullException();
+
+            AddCoverTo(ref manifest);
+            AddTocTo(ref manifest, ref spine);
+            AddVolumesTo(ref manifest, ref spine);
+        }
+
+        private void AddCoverTo(ref XElement manifest)
+        {
+            manifest.Add(new XElement(_xmlnsOpf + "item",
+                new XAttribute("id", "cover"),
+                new XAttribute("href", _registeredOebpsList.CoverXhtml),
+                new XAttribute("media-type", "application/xhtml+xml")));
+
+            var coverImageHref = _registeredOebpsList.Cover.VirtualPath.Replace('\\', '/');
+            var ext = Path.GetExtension(_registeredOebpsList.Cover.PhysicalPath).ToLowerInvariant();
+            var mediaType = ext switch
+            {
+                ".jpg" or ".jpeg" => "image/jpeg",
+                ".png" => "image/png",
+                ".gif" => "image/gif",
+                ".svg" => "image/svg+xml",
+                _ => "application/octet-stream"
+            };
+            manifest.Add(new XElement(_xmlnsOpf + "item",
+                new XAttribute("id", "cover-image"),
+                new XAttribute("href", coverImageHref),
+                new XAttribute("media-type", mediaType),
+                new XAttribute("properties", "cover-image")));
+        }
+
+        private void AddTocTo(ref XElement manifest, ref XElement spine)
+        {
+            manifest.Add(new XElement(_xmlnsOpf + "item",
+                new XAttribute("id", "toc"),
+                new XAttribute("href", _registeredOebpsList.TocXhtml),
+                new XAttribute("media-type", "application/xhtml+xml"),
+                new XAttribute("properties", "nav")));
+
+            manifest.Add(new XElement(_xmlnsOpf + "item",
+                new XAttribute("id", "ncx"),
+                new XAttribute("href", _registeredOebpsList.TocNcx),
+                new XAttribute("media-type", "application/x-dtbncx+xml")));
+
+            spine.Add(new XElement(_xmlnsOpf + "itemref", new XAttribute("idref", "ncx")));
+
+            if (spine.Attributes().All(a => a.Name != "toc"))
+                spine.Add(new XAttribute("toc", "ncx"));
+        }
+
+        private void AddVolumesTo(ref XElement manifest, ref XElement spine)
+        {
+            foreach (var (volume, indexV) in _registeredOebpsList.Volumes.Select((volume, index) =>
+                         (volume, index + 1)))
+            {
+                foreach (var (chapterLinker, indexC) in volume.Chapters.Select((chapter, index) =>
+                             (chapter, index + 1)))
+                {
+                    var relativePath = chapterLinker.Path;
+                    var id = $"volume{indexV}chapter{indexC}";
+                    manifest.Add(new XElement(_xmlnsOpf + "item",
+                        new XAttribute("id", id),
+                        new XAttribute("href", relativePath),
+                        new XAttribute("media-type", "application/xhtml+xml")
+                    ));
+                    spine.Add(new XElement(_xmlnsOpf + "itemref", new XAttribute("idref", id)));
+                }
+            }
+        }
+
+        private readonly XNamespace _xmlnsDc = "http://purl.org/dc/elements/1.1/";
+        private readonly XNamespace _xmlnsOpf = "http://www.idpf.org/2007/opf";
+        private readonly XDocument _contentOpf = EpubMakeHelper.MakeContentOpfTemplate();
+        private readonly RegisteredOebpsList _registeredOebpsList = registeredOebpsList;
+        private readonly TranslationTask.BookContent _bookContent = bookContent;
     }
 }
