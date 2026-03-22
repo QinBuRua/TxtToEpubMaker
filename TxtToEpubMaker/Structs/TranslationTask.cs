@@ -2,8 +2,8 @@
 
 public struct TranslationTask()
 {
-    public required BookContent Content { get; set; }
-    public required string OutFilePath { get; set; }
+    public required BookContent Content { get; init; }
+    public required string OutFilePath { get; init; }
 
     public bool ForceRemove { get; init; } = false;
 
@@ -15,7 +15,7 @@ public struct TranslationTask()
         public required string Author { get; set; }
         public required string BookId { get; set; }
         public required string CoverPath { get; set; }
-        public required List<Volume> Volumes { get; set; }
+        public required List<Volume> Volumes { get; init; }
 
         public struct ChapterLinker
         {
@@ -26,7 +26,7 @@ public struct TranslationTask()
         public struct Volume
         {
             public required string Title { get; set; }
-            public required List<ChapterLinker> Chapters { get; set; }
+            public required List<ChapterLinker> Chapters { get; init; }
         }
     }
 }
