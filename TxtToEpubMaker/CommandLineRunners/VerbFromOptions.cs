@@ -1,8 +1,10 @@
 ﻿using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using CommandLine;
 using TxtToEpubMaker.Structs;
 
 namespace TxtToEpubMaker.CommandLineRunners;
+
 
 [Verb("from", HelpText = "Get translation task config from a Json file or a Json string")]
 public class VerbFromOptions
@@ -12,6 +14,16 @@ public class VerbFromOptions
 
     [Option('s', "string", HelpText = "Get config from a Json string. You should input a Json string")]
     public string? JsonString { get; set; }
+
+    public VerbFromOptions()
+    {
+    }
+
+    public VerbFromOptions(string? filePath, string? jsonString)
+    {
+        FilePath = filePath;
+        JsonString = jsonString;
+    }
 
     public static void Run(VerbFromOptions options)
     {

@@ -1,21 +1,28 @@
-﻿using CommandLine;
-using TxtToEpubMaker;
+﻿using System.Diagnostics.CodeAnalysis;
+using CommandLine;
 using TxtToEpubMaker.CommandLineRunners;
 using TxtToEpubMaker.Structs;
 
-var commandLineArgs = Environment.GetCommandLineArgs().Skip(1).ToArray();
+namespace TxtToEpubMaker;
 
-Parser.Default.ParseArguments<VerbFromOptions, VerbBuildOptions>(commandLineArgs)
-    .WithParsed<VerbFromOptions>(VerbFromOptions.Run)
-    .WithParsed<VerbBuildOptions>(VerbBuildOptions.Run)
-    .WithNotParsed(errors =>
+public static class Program
+{
+    [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(VerbFromOptions))]
+    static void Main(string[] args)
     {
-        var firstError = errors.FirstOrDefault()!;
-        var statue = new EpubResult
-        {
-            Success = false,
-            ErrorMessage = $"{firstError.GetType().Namespace}.{firstError.GetType().FullName}: {firstError}"
-        };
-        Console.WriteLine(AppJsonContext.Serialize(statue));
-        Environment.Exit(-1);
-    });
+        Parser.Default.ParseArguments<VerbFromOptions, VerbBuildOptions>(args)
+            .WithParsed<VerbFromOptions>(VerbFromOptions.Run)
+            .WithParsed<VerbBuildOptions>(VerbBuildOptions.Run)
+            .WithNotParsed(errors =>
+            {
+                var firstError = errors.FirstOrDefault()!;
+                var statue = new EpubResult
+                {
+                    Success = false,
+                    ErrorMessage = $"{firstError.GetType().Namespace}.{firstError.GetType().FullName}: {firstError}"
+                };
+                Console.WriteLine(AppJsonContext.Serialize(statue));
+                Environment.Exit(-1);
+            });
+    }
+}
