@@ -1,41 +1,21 @@
-﻿using System.Text.Json;
+﻿using CommandLine;
+using TxtToEpubMaker;
+using TxtToEpubMaker.CommandLineRunners;
 using TxtToEpubMaker.Structs;
 
-var commandLineArgs = Environment.GetCommandLineArgs();
-EpubResult statue;
+var commandLineArgs = Environment.GetCommandLineArgs().Skip(1).ToArray();
 
-if (commandLineArgs.Length != 2)
-{
-    statue = new EpubResult
+Parser.Default.ParseArguments<VerbFromOptions, VerbBuildOptions>(commandLineArgs)
+    .WithParsed<VerbFromOptions>(VerbFromOptions.Run)
+    .WithParsed<VerbBuildOptions>(VerbBuildOptions.Run)
+    .WithNotParsed(errors =>
     {
-        Success = false,
-        ErrorMessage = "Invalid arguments"
-    };
-}
-else if (!File.Exists(commandLineArgs[1]))
-{
-    statue = new EpubResult
-    {
-        Success = false,
-        ErrorMessage = $"TaskFile \"{commandLineArgs[1]}\" not found"
-    };
-}
-else
-{
-    try
-    {
-        var taskFile = File.ReadAllText(Environment.GetCommandLineArgs()[1]);
-        var task = JsonSerializer.Deserialize<TranslationTask>(taskFile);
-        statue = TxtToEpubMaker.TxtToEpubMaker.MakeEpubFromTask(task);
-    }
-    catch (Exception exception)
-    {
-        statue = new EpubResult
+        var firstError = errors.FirstOrDefault()!;
+        var statue = new EpubResult
         {
             Success = false,
-            ErrorMessage = $"{exception.GetType().Name}: {exception}"
+            ErrorMessage = $"{firstError.GetType().Namespace}.{firstError.GetType().FullName}: {firstError}"
         };
-    }
-}
-
-Console.Write(JsonSerializer.Serialize(statue));
+        Console.WriteLine(AppJsonContext.Serialize(statue));
+        Environment.Exit(-1);
+    });
