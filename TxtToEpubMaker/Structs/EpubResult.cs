@@ -1,4 +1,6 @@
-﻿namespace TxtToEpubMaker.Structs;
+﻿using System.Text.Json.Serialization;
+
+namespace TxtToEpubMaker.Structs;
 
 public struct EpubResult
 {

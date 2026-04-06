@@ -1,8 +1,8 @@
 ﻿<component name="ProjectRunConfigurationManager">
   <configuration default="false" name="TxtToEpubMaker" type="DotNetProject" factoryName=".NET Project">
     <option name="EXE_PATH" value="$PROJECT_DIR$/TxtToEpubMaker/bin/Release/net10.0/TxtToEpubMaker.exe" />
-    <option name="PROGRAM_PARAMETERS" value="from -f &quot;D:\coding\TxtToEpubMaker\Data\test_epub_content\translation_task.json&quot;" />
-    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/Data" />
+    <option name="PROGRAM_PARAMETERS" value="" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/TxtToEpubMaker/bin/Release/net10.0" />
     <option name="PASS_PARENT_ENVS" value="1" />
     <option name="ENV_FILE_PATHS" value="" />
     <option name="REDIRECT_INPUT_PATH" value="" />
@@ -12,9 +12,9 @@
     <option name="AUTO_ATTACH_CHILDREN" value="0" />
     <option name="PROJECT_PATH" value="$PROJECT_DIR$/TxtToEpubMaker/TxtToEpubMaker.csproj" />
     <option name="PROJECT_EXE_PATH_TRACKING" value="1" />
-    <option name="PROJECT_ARGUMENTS_TRACKING" value="0" />
+    <option name="PROJECT_ARGUMENTS_TRACKING" value="1" />
     <option name="PROJECT_WORKING_DIRECTORY_TRACKING" value="1" />
-    <option name="PROJECT_KIND" value="Unloaded" />
+    <option name="PROJECT_KIND" value="DotNetCore" />
     <option name="PROJECT_TFM" value="net10.0" />
     <method v="2">
       <option name="Build" />

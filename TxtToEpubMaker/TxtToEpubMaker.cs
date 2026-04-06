@@ -1,5 +1,5 @@
-﻿using System.Diagnostics;
-using System.IO.Compression;
+﻿using System.IO.Compression;
+using System.Text.Json;
 using System.Xml.Linq;
 using TxtToEpubMaker.Helpers;
 using TxtToEpubMaker.Structs;
@@ -32,10 +32,16 @@ public class TxtToEpubMaker(TranslationTask translationTask)
             statue.Success = true;
             statue.EpubPath = txtToEpub._outputFilePath;
         }
+        catch (JsonException jsonException)
+        {
+            statue.Success = false;
+            statue.ErrorMessage =
+                $"{jsonException.GetType().FullName}: {jsonException.Message} | Line: {jsonException.LineNumber}";
+        }
         catch (Exception exception)
         {
             statue.Success = false;
-            statue.ErrorMessage = $"{exception.GetType().Name}: {exception}";
+            statue.ErrorMessage = $"{exception.GetType().FullName}: {exception.Message}";
         }
 
         return statue;
@@ -96,9 +102,8 @@ public class TxtToEpubMaker(TranslationTask translationTask)
         XNamespace xmlns = "http://www.w3.org/1999/xhtml";
         var tocXhtml = EpubMakeHelper.MakeTocXhtmlTemplate();
 
-        Debug.Assert(tocXhtml.Root != null);
-        var navElement = tocXhtml.Root.Element(xmlns + "body")?.Element(xmlns + "nav");
-        var volumesOl = navElement?.Element(xmlns + "ol") ?? throw new ArgumentNullException();
+        var navElement = tocXhtml.Root!.Element(xmlns + "body")?.Element(xmlns + "nav");
+        var volumesOl = navElement?.Element(xmlns + "ol")!;
 
         volumesOl.AddFirst(new XElement(xmlns + "li",
             new XElement(xmlns + "a",
@@ -134,8 +139,7 @@ public class TxtToEpubMaker(TranslationTask translationTask)
         XNamespace xmlns = "http://www.daisy.org/z3986/2005/ncx/";
         var tocNcx = EpubMakeHelper.MakeTocNcxTemplate(_bookContent);
 
-        Debug.Assert(tocNcx.Root != null);
-        var navMap = tocNcx.Root.Element(xmlns + "navMap")
+        var navMap = tocNcx.Root!.Element(xmlns + "navMap")
                      ?? throw new InvalidOperationException("navMap element not found");
 
         var playOrder = 1;
@@ -203,7 +207,7 @@ public class TxtToEpubMaker(TranslationTask translationTask)
         };
     }
 
-    private void GenerateTempVolumeWithRegister(in string prefix, in TranslationTask.BookContent.Volume volume)
+    private void GenerateTempVolumeWithRegister(string prefix, in TranslationTask.BookContentSet.Volume volume)
     {
         _registeredOebpsList.Volumes.Add(new RegisteredOebpsList.Volume
         {
@@ -216,8 +220,8 @@ public class TxtToEpubMaker(TranslationTask translationTask)
         }
     }
 
-    private void GenerateTempChapterWithRegister(in string filename,
-        in TranslationTask.BookContent.ChapterLinker chapterLinker)
+    private void GenerateTempChapterWithRegister(string filename,
+        in TranslationTask.BookContentSet.ChapterLinker chapterLinker)
     {
         WriteAllTextInTemp(filename, EpubMakeHelper.TxtToXml(chapterLinker).ToString());
         _registeredOebpsList.Volumes.Last().Chapters.Add(new RegisteredOebpsList.ChapterLinker
@@ -269,18 +273,18 @@ public class TxtToEpubMaker(TranslationTask translationTask)
         memoryStream.CopyTo(outputFileStream);
     }
 
-    private void WriteAllTextInTemp(in UPath uPath, in string text)
+    private void WriteAllTextInTemp(UPath uPath, string text)
     {
         var parent = uPath.GetDirectory();
         _tempFileSystem.CreateDirectory(parent);
         _tempFileSystem.WriteAllText(uPath, text);
     }
 
-    private readonly TranslationTask.BookContent _bookContent = translationTask.SkipIfTxtNotExists
-        ? EpubMakeHelper.FilterTxtIfExists(translationTask.Content)
-        : translationTask.Content;
+    private readonly TranslationTask.BookContentSet _bookContent = translationTask.SkipIfTxtNotExists
+        ? EpubMakeHelper.FilterTxtIfExists(translationTask.BookContent)
+        : translationTask.BookContent;
 
-    private readonly string _outputFilePath = translationTask.OutFilePath;
+    private readonly string _outputFilePath = translationTask.OutputFilePath;
     private readonly bool _forceRemove = translationTask.ForceRemove;
     private RegisteredOebpsList _registeredOebpsList = new();
 
@@ -317,10 +321,10 @@ public class TxtToEpubMaker(TranslationTask translationTask)
 
     private class ContentOpfHelper(
         in RegisteredOebpsList registeredOebpsList,
-        in TranslationTask.BookContent bookContent)
+        in TranslationTask.BookContentSet bookContent)
     {
         public static XDocument MakeContentOpfFrom(in RegisteredOebpsList registeredOebpsList,
-            in TranslationTask.BookContent bookContent)
+            in TranslationTask.BookContentSet bookContent)
         {
             var helper = new ContentOpfHelper(registeredOebpsList, bookContent);
 
@@ -332,9 +336,7 @@ public class TxtToEpubMaker(TranslationTask translationTask)
 
         private void GenerateMetadata()
         {
-            Debug.Assert(_contentOpf.Root != null);
-            var metadata = _contentOpf.Root.Element(_xmlnsOpf + "metadata")
-                           ?? throw new ArgumentNullException();
+            var metadata = _contentOpf.Root!.Element(_xmlnsOpf + "metadata")!;
 
             metadata.Add(new XElement(_xmlnsDc + "identifier", new XAttribute("id", "book-id"), _bookContent.BookId));
             metadata.Add(new XElement(_xmlnsDc + "title", _bookContent.Title));
@@ -349,9 +351,8 @@ public class TxtToEpubMaker(TranslationTask translationTask)
 
         private void GenerateManifestAndSpine()
         {
-            Debug.Assert(_contentOpf.Root != null);
-            var manifest = _contentOpf.Root.Element(_xmlnsOpf + "manifest") ?? throw new ArgumentNullException();
-            var spine = _contentOpf.Root.Element(_xmlnsOpf + "spine") ?? throw new ArgumentNullException();
+            var manifest = _contentOpf.Root!.Element(_xmlnsOpf + "manifest")!;
+            var spine = _contentOpf.Root.Element(_xmlnsOpf + "spine")!;
 
             AddCoverTo(ref manifest);
             AddTocTo(ref manifest, ref spine);
@@ -425,6 +426,6 @@ public class TxtToEpubMaker(TranslationTask translationTask)
         private readonly XNamespace _xmlnsOpf = "http://www.idpf.org/2007/opf";
         private readonly XDocument _contentOpf = EpubMakeHelper.MakeContentOpfTemplate();
         private readonly RegisteredOebpsList _registeredOebpsList = registeredOebpsList;
-        private readonly TranslationTask.BookContent _bookContent = bookContent;
+        private readonly TranslationTask.BookContentSet _bookContent = bookContent;
     }
 }

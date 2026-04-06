@@ -1,34 +1,22 @@
-﻿using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
+﻿using System.Text.Json;
 using CommandLine;
 using TxtToEpubMaker.Structs;
 
 namespace TxtToEpubMaker.CommandLineRunners;
 
-
 [Verb("from", HelpText = "Get translation task config from a Json file or a Json string")]
-public class VerbFromOptions
+public class VerbFromOptions : BaseOptions
 {
     [Option('f', "file", HelpText = "Get config from a Json file. You should input a file path.")]
-    public string? FilePath { get; set; }
+    public string? FilePath { get; init; }
 
     [Option('s', "string", HelpText = "Get config from a Json string. You should input a Json string")]
-    public string? JsonString { get; set; }
-
-    public VerbFromOptions()
-    {
-    }
-
-    public VerbFromOptions(string? filePath, string? jsonString)
-    {
-        FilePath = filePath;
-        JsonString = jsonString;
-    }
+    public string? JsonString { get; init; }
 
     public static void Run(VerbFromOptions options)
     {
-        var fileIsNull = options.FilePath == null;
-        var stringIsNull = options.JsonString == null;
+        var fileIsNull = string.IsNullOrEmpty(options.FilePath);
+        var stringIsNull = string.IsNullOrEmpty(options.JsonString);
 
         EpubResult statue;
 
@@ -37,7 +25,7 @@ public class VerbFromOptions
             statue = new EpubResult
             {
                 Success = false,
-                ErrorMessage = $"Must input {(fileIsNull ? "" : "ONLY ")}ONE argument"
+                ErrorMessage = $"Must input {(fileIsNull ? "" : "ONLY ")}ONE argument",
             };
         }
         else
@@ -49,18 +37,26 @@ public class VerbFromOptions
 
                 statue = TxtToEpubMaker.MakeEpubFromTask(translationTask);
             }
+            catch (JsonException jsonException)
+            {
+                statue = new EpubResult
+                {
+                    Success = false,
+                    ErrorMessage =
+                        $"{jsonException.GetType().FullName}: {jsonException.Message} | Line: {jsonException.LineNumber}",
+                };
+            }
             catch (Exception exception)
             {
                 statue = new EpubResult
                 {
                     Success = false,
                     ErrorMessage =
-                        $"{exception.GetType().Namespace}.{exception.GetType().FullName}: {exception.Message}"
+                        $"{exception.GetType().FullName}: {exception.Message}"
                 };
             }
         }
 
-        Console.WriteLine(AppJsonContext.Serialize(statue));
-        Environment.Exit(statue.Success ? 0 : -1);
+        options.WriteCommandResultAndExit(statue);
     }
 }

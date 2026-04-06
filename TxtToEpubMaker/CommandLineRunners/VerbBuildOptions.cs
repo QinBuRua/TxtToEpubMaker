@@ -3,7 +3,7 @@
 namespace TxtToEpubMaker.CommandLineRunners;
 
 [Verb("build", HelpText = "Build translation task config from command line arguments.")]
-public class VerbBuildOptions
+public class VerbBuildOptions : BaseOptions
 {
     public static void Run(VerbBuildOptions options)
     {

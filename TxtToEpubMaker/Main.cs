@@ -8,7 +8,8 @@ namespace TxtToEpubMaker;
 public static class Program
 {
     [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(VerbFromOptions))]
-    static void Main(string[] args)
+    [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(VerbBuildOptions))]
+    public static void Main(string[] args)
     {
         Parser.Default.ParseArguments<VerbFromOptions, VerbBuildOptions>(args)
             .WithParsed<VerbFromOptions>(VerbFromOptions.Run)
@@ -19,7 +20,7 @@ public static class Program
                 var statue = new EpubResult
                 {
                     Success = false,
-                    ErrorMessage = $"{firstError.GetType().Namespace}.{firstError.GetType().FullName}: {firstError}"
+                    ErrorMessage = $"{firstError.GetType().FullName}: {firstError}"
                 };
                 Console.WriteLine(AppJsonContext.Serialize(statue));
                 Environment.Exit(-1);

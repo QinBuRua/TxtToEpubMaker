@@ -1,5 +1,4 @@
-﻿using System.Diagnostics;
-using System.Xml.Linq;
+﻿using System.Xml.Linq;
 using TxtToEpubMaker.Structs;
 
 namespace TxtToEpubMaker.Helpers;
@@ -51,7 +50,7 @@ public static class EpubMakeHelper
         );
     }
 
-    public static XDocument MakeXhtmlTemplate(in string? title)
+    public static XDocument MakeXhtmlTemplate(string? title)
     {
         XNamespace xmlns = "http://www.w3.org/1999/xhtml";
         return new XDocument(
@@ -69,7 +68,7 @@ public static class EpubMakeHelper
         );
     }
 
-    public static XDocument MakeTocNcxTemplate(in TranslationTask.BookContent bookContent)
+    public static XDocument MakeTocNcxTemplate(in TranslationTask.BookContentSet bookContent)
     {
         XNamespace xmlns = "http://www.daisy.org/z3986/2005/ncx/";
 
@@ -159,7 +158,7 @@ public static class EpubMakeHelper
         );
     }
 
-    public static XDocument TxtToXml(in TranslationTask.BookContent.ChapterLinker chapterLinker)
+    public static XDocument TxtToXml(in TranslationTask.BookContentSet.ChapterLinker chapterLinker)
     {
         if (!File.Exists(chapterLinker.FilePath))
         {
@@ -170,8 +169,7 @@ public static class EpubMakeHelper
         var xhtmlDoc = MakeXhtmlTemplate(chapterLinker.Title);
         var lines = File.ReadAllLines(chapterLinker.FilePath);
 
-        Debug.Assert(xhtmlDoc.Root != null);
-        var body = xhtmlDoc.Root.Element(xmlns + "body") ?? throw new ArgumentNullException();
+        var body = xhtmlDoc.Root!.Element(xmlns + "body")!;
         var emptyFlag = false;
         foreach (var line in lines)
         {
@@ -192,7 +190,7 @@ public static class EpubMakeHelper
         return xhtmlDoc;
     }
 
-    public static TranslationTask.BookContent FilterTxtIfExists(in TranslationTask.BookContent bookContent)
+    public static TranslationTask.BookContentSet FilterTxtIfExists(in TranslationTask.BookContentSet bookContent)
     {
         var filteredVolumes = bookContent.Volumes
             .Select(volume => volume with

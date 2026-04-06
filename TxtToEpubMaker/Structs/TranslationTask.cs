@@ -2,14 +2,14 @@
 
 public struct TranslationTask()
 {
-    public required BookContent Content { get; init; }
-    public required string OutFilePath { get; init; }
+    public required BookContentSet BookContent { get; init; }
+    public required string OutputFilePath { get; init; }
 
     public bool ForceRemove { get; init; } = false;
 
     public bool SkipIfTxtNotExists { get; init; } = false;
 
-    public struct BookContent
+    public struct BookContentSet
     {
         public required string Title { get; set; }
         public required string Author { get; set; }
