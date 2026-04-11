@@ -12,10 +12,7 @@ public class TxtToEpubMaker(TranslationTask translationTask)
 {
     public static EpubResult MakeEpubFromTask(TranslationTask translationTask)
     {
-        var statue = new EpubResult
-        {
-            Success = true
-        };
+        EpubResult statue;
 
         try
         {
@@ -29,19 +26,15 @@ public class TxtToEpubMaker(TranslationTask translationTask)
             txtToEpub.GenerateTemp();
             txtToEpub.PackUp();
 
-            statue.Success = true;
-            statue.EpubPath = txtToEpub._outputFilePath;
+            statue = new EpubResult(txtToEpub._outputFilePath);
         }
         catch (JsonException jsonException)
         {
-            statue.Success = false;
-            statue.ErrorMessage =
-                $"{jsonException.GetType().FullName}: {jsonException.Message} | Line: {jsonException.LineNumber}";
+            statue = new EpubResult(jsonException);
         }
         catch (Exception exception)
         {
-            statue.Success = false;
-            statue.ErrorMessage = $"{exception.GetType().FullName}: {exception.Message}";
+            statue = new EpubResult(exception);
         }
 
         return statue;

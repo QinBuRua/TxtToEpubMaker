@@ -17,11 +17,15 @@ public static class Program
             .WithNotParsed(errors =>
             {
                 var firstError = errors.FirstOrDefault()!;
-                var statue = new EpubResult
+                var argumentException = firstError switch
                 {
-                    Success = false,
-                    ErrorMessage = $"{firstError.GetType().FullName}: {firstError}"
+                    MissingRequiredOptionError missingRequired 
+                        => new ArgumentNullException(missingRequired.NameInfo.LongName, missingRequired.ToString()),
+                    MissingValueOptionError missingValue
+                        => new ArgumentNullException(missingValue.NameInfo.LongName, missingValue.ToString()),
+                    _=> new ArgumentException($"{firstError}")
                 };
+                var statue = new EpubResult(argumentException);
                 Console.WriteLine(AppJsonContext.Serialize(statue));
                 Environment.Exit(-1);
             });

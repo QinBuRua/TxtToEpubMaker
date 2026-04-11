@@ -1,14 +1,16 @@
-﻿using CommandLine;
+﻿using System.Text.Json;
+using CommandLine;
 using TxtToEpubMaker.Structs;
 
 namespace TxtToEpubMaker.CommandLineRunners;
 
 public class BaseOptions
 {
-    [Option('v', "verbose", Required = false, Default = false, HelpText = "Get detailed information made by Json string")]
+    [Option('v', "verbose", Required = false, Default = false,
+        HelpText = "Get detailed information made by Json string")]
     public bool Verbose { get; init; }
 
-    public void WriteCommandResultAndExit(EpubResult statue)
+    protected void WriteCommandResultAndExit(EpubResult statue)
     {
         if (Verbose)
         {
@@ -21,85 +23,66 @@ public class BaseOptions
             Environment.Exit(0);
         }
 
-        var errorMessage = statue.ErrorMessage!;
-        var exceptionType = ExtractExceptionType(errorMessage) ?? "";
         var messageResult =
-            ErrorMessageTranslationTab.GetValueOrDefault(exceptionType, ExtractDefaultErrorMessage)(errorMessage);
+            ProcessExceptionMessage(
+                statue.InnerException ?? new NullReferenceException("statue.InnerException is null"));
 
         Console.WriteLine(messageResult);
         Environment.Exit(-1);
     }
 
-    private static string? ExtractExceptionType(string message)
+    private static string ProcessDefaultErrorMessage(Exception exception)
     {
-        var endIndex = message.IndexOf(": ", StringComparison.Ordinal);
-        return endIndex >= 0 ? message[..endIndex] : null;
+        return $"{exception.Message}";
     }
 
-    private static string ExtractDefaultErrorMessage(string message)
+    private static string ProcessNullReferenceErrorMessage(NullReferenceException nullReferenceException)
     {
-        var index = message.IndexOf(": ", StringComparison.Ordinal) + 2;
-        return index >= 0 ? message[index..] : message;
+        return $"Inner Error. Please send this message to Developer. | Details: {nullReferenceException}";
     }
 
-    private static string ExtractJsonErrorMessage(string message)
+    private static string ProcessJsonErrorMessage(JsonException jsonException)
     {
-        var preprocessedMessage = ExtractDefaultErrorMessage(message);
-        string result;
-        if (preprocessedMessage.Contains("was missing required properties"))
-        {
-            result = ExtractJsonErrorMessageIfMissingRequired(preprocessedMessage);
-        }
-        else
-        {
-            result = preprocessedMessage;
-        }
-
-        return result;
+        return jsonException.Message.Contains("missing required properties")
+            ? ProcessJsonErrorMessageIfMissingRequired(jsonException)
+            : $"{jsonException.GetType().FullName}: {jsonException.Message}";
     }
 
-    private static string ExtractJsonErrorMessageIfMissingRequired(string preprocessedMessage)
+    private static string ProcessJsonErrorMessageIfMissingRequired(JsonException jsonException)
     {
-        var setNameFullBegIndex = preprocessedMessage.IndexOf("for type '", StringComparison.Ordinal) + 10;
-        var setNameEndIndex = preprocessedMessage.IndexOf('\'', setNameFullBegIndex);
-        var setNameBegIndex = preprocessedMessage.LastIndexOfAny(['.', '+'], setNameEndIndex);
-        setNameBegIndex = setNameEndIndex >= 0 ? setNameBegIndex + 1 : setNameFullBegIndex;
-        var setName = preprocessedMessage[setNameBegIndex..setNameEndIndex];
+        var errorMessage = jsonException.Message;
 
-        var keyBegIndex = preprocessedMessage.IndexOf(": '", StringComparison.Ordinal) + 3;
-        var keyEndIndex = preprocessedMessage.IndexOf('\'', keyBegIndex);
-        var requiredKey = preprocessedMessage[keyBegIndex..keyEndIndex];
+        var typeFullNameBegIndex = errorMessage.IndexOf("type '", StringComparison.Ordinal) + 6;
+        var typeNameEndIndex = errorMessage.IndexOf('\'', typeFullNameBegIndex);
+        var typeNameBegIndex = errorMessage.LastIndexOfAny(['.', '+'], typeNameEndIndex) + 1;
+        typeNameBegIndex = typeNameBegIndex >= 0 ? typeNameBegIndex : typeFullNameBegIndex;
+        var typeNameString = errorMessage[typeNameBegIndex..typeNameEndIndex];
 
-        var lineNumBegIndex = preprocessedMessage.LastIndexOf("| Line: ", StringComparison.Ordinal) + 8;
-        var lineNumString = preprocessedMessage[lineNumBegIndex..];
+        var keyNameBegIndex = errorMessage.IndexOf('\'', typeNameEndIndex + 1) + 1;
+        var keyNameEndIndex = errorMessage.IndexOf('\'', keyNameBegIndex + 1);
+        var keyNameString = errorMessage[keyNameBegIndex..keyNameEndIndex];
 
-        setName = setName switch
+        typeNameString = typeNameString switch
         {
             nameof(TranslationTask) => "GlobalSettings",
             nameof(TranslationTask.BookContentSet) => "BookContent",
-            nameof(TranslationTask.BookContentSet.Volume) => "Volume",
-            nameof(TranslationTask.BookContentSet.ChapterLinker) => "Chapter",
-            _ => setName
+            nameof(TranslationTask.BookContentSet.Volume) => "Volumes",
+            nameof(TranslationTask.BookContentSet.ChapterLinker) => "Chapters",
+            _ => typeNameString
         };
 
-        return $"Missing Key \"{requiredKey}\", from \"{setName}\", in line {lineNumString}.";
+        return
+            $"Missing required key \"{keyNameString}\", from \"{typeNameString}\", in line {jsonException.LineNumber}";
     }
 
 
-    private static readonly Dictionary<string, Func<string, string>> ErrorMessageTranslationTab = new()
+    private static string ProcessExceptionMessage(Exception exception)
     {
-        ["System.ArgumentNullException"] = message =>
-            $"Inner Error. Please Send this bug to developer, thanks. Details: {message}",
-        ["System.NullReferenceException"] = message =>
-            $"Inner Error. Please Send this bug to developer, thanks.  Details: {message}",
-        ["System.IO.FileNotFoundException"] = ExtractDefaultErrorMessage,
-        ["System.IO.DirectoryNotFoundException"] = ExtractDefaultErrorMessage,
-        ["System.IO.IOException"] = ExtractDefaultErrorMessage,
-        ["System.IO.PathTooLongException"] = ExtractDefaultErrorMessage,
-        ["System.IO.DriveNotFoundException"] = ExtractDefaultErrorMessage,
-        ["System.IO.EndOfStreamException"] = ExtractDefaultErrorMessage,
-        ["System.IO.FileLoadException"] = ExtractDefaultErrorMessage,
-        ["System.Text.Json.JsonException"] = ExtractJsonErrorMessage,
-        [""] = message => message
-    };
+        return exception switch
+        {
+            JsonException jsonException => ProcessJsonErrorMessage(jsonException),
+            NullReferenceException nullReferenceException => ProcessNullReferenceErrorMessage(nullReferenceException),
+            _ => ProcessDefaultErrorMessage(exception)
+        };
+    }
 }

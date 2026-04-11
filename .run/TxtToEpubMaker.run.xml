@@ -1,7 +1,7 @@
 ﻿<component name="ProjectRunConfigurationManager">
   <configuration default="false" name="TxtToEpubMaker" type="DotNetProject" factoryName=".NET Project">
     <option name="EXE_PATH" value="$PROJECT_DIR$/TxtToEpubMaker/bin/Release/net10.0/TxtToEpubMaker.exe" />
-    <option name="PROGRAM_PARAMETERS" value="" />
+    <option name="PROGRAM_PARAMETERS" value="from -f &quot;D:\coding\TxtToEpubMaker\Data\test_epub_content\translation_task.json&quot;" />
     <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/TxtToEpubMaker/bin/Release/net10.0" />
     <option name="PASS_PARENT_ENVS" value="1" />
     <option name="ENV_FILE_PATHS" value="" />

@@ -22,11 +22,10 @@ public class VerbFromOptions : BaseOptions
 
         if (fileIsNull == stringIsNull)
         {
-            statue = new EpubResult
-            {
-                Success = false,
-                ErrorMessage = $"Must input {(fileIsNull ? "" : "ONLY ")}ONE argument",
-            };
+            var argumentException = fileIsNull
+                ? new ArgumentNullException($"file", "Must input ONE argument")
+                : new ArgumentException("Must input ONLY ONE argument");
+            statue = new EpubResult(argumentException);
         }
         else
         {
@@ -37,23 +36,9 @@ public class VerbFromOptions : BaseOptions
 
                 statue = TxtToEpubMaker.MakeEpubFromTask(translationTask);
             }
-            catch (JsonException jsonException)
-            {
-                statue = new EpubResult
-                {
-                    Success = false,
-                    ErrorMessage =
-                        $"{jsonException.GetType().FullName}: {jsonException.Message} | Line: {jsonException.LineNumber}",
-                };
-            }
             catch (Exception exception)
             {
-                statue = new EpubResult
-                {
-                    Success = false,
-                    ErrorMessage =
-                        $"{exception.GetType().FullName}: {exception.Message}"
-                };
+                statue = new EpubResult(exception);
             }
         }
 
