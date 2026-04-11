@@ -21,14 +21,9 @@ public partial class AppJsonContext : JsonSerializerContext
 
     public static T Deserialize<T>(string jsonString)
     {
-        if (string.IsNullOrEmpty(jsonString))
-        {
-            throw new ArgumentNullException(nameof(jsonString));
-        }
-
         return JsonSerializer.Deserialize<T>(jsonString, DefaultOptions.Value)
-               ?? throw new JsonException(
-                   $"Fail to deserialize {typeof(T).FullName}, Value is null");
+               ?? throw new InvalidOperationException(
+                   $"Failed to deserialize {typeof(T).FullName}: result is null");
     }
 
     public static string Serialize<T>(T value)
